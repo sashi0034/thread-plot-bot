@@ -1,7 +1,7 @@
 import unittest
 
 from thread_plot.command import parse_command
-from thread_plot.data import build_plot_data, moving_average, parse_fields
+from thread_plot.data import build_plot_data, matches_where, moving_average, parse_fields
 
 
 class DataTests(unittest.TestCase):
@@ -25,3 +25,20 @@ class DataTests(unittest.TestCase):
         self.assertEqual(moving_average((1.0, 3.0, 8.0), 2), (1.0, 2.0, 5.5))
         self.assertEqual(parse_fields("flag=true x=1"), {"flag": "true", "x": "1"})
 
+    def test_where_presence_text_and_numeric_comparisons(self):
+        fields = parse_fields("flag=true score=2.5 mode=train")
+        checks = {
+            "flag": True,
+            "!debug": True,
+            "mode=train": True,
+            "mode!=eval": True,
+            "score>2": True,
+            "score>=2.5": True,
+            "score<3": True,
+            "score<=2.5": True,
+            "score>bad": False,
+            "missing!=x": False,
+        }
+        for expression, expected in checks.items():
+            with self.subTest(expression=expression):
+                self.assertEqual(matches_where(fields, parse_command(f"reward --where {expression}").where[0]), expected)

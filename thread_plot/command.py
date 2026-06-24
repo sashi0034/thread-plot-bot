@@ -18,10 +18,20 @@ SLACK_URL_RE = re.compile(
 
 
 @dataclass(frozen=True)
+class WhereCondition:
+    key: str
+    operator: str
+    value: str | None = None
+
+    def display(self) -> str:
+        return f"{self.key}{self.operator}{self.value or ''}" if self.operator != "exists" else self.key
+
+
+@dataclass(frozen=True)
 class PlotCommand:
     y_fields: tuple[str, ...]
     x_field: str | None = None
-    where: tuple[tuple[str, str], ...] = ()
+    where: tuple[WhereCondition, ...] = ()
     last: int | None = None
     smooth: int | None = None
     title: str | None = None
@@ -56,7 +66,7 @@ def parse_command(text: str) -> PlotCommand:
         raise CommandError("at least one y field is required")
 
     x_field: str | None = None
-    where: list[tuple[str, str]] = []
+    where: list[WhereCondition] = []
     last: int | None = None
     smooth: int | None = None
     title: str | None = None
@@ -78,10 +88,7 @@ def parse_command(text: str) -> PlotCommand:
         if option == "--x":
             x_field = _field(value, "x")
         elif option == "--where":
-            key, separator, expected = value.partition("=")
-            if not separator or not expected:
-                raise CommandError("--where must be KEY=VALUE")
-            where.append((_field(key, "where key"), expected))
+            where.append(parse_where(value))
         elif option in {"--last", "--smooth"}:
             try:
                 number = int(value)
@@ -102,6 +109,19 @@ def parse_command(text: str) -> PlotCommand:
     return PlotCommand(tuple(y_fields), x_field, tuple(where), last, smooth, title, url)
 
 
+def parse_where(value: str) -> WhereCondition:
+    """Parse one presence, equality, or numeric-comparison filter."""
+    if value.startswith("!") and len(value) > 1 and all(symbol not in value[1:] for symbol in "=<>!"):
+        return WhereCondition(_field(value[1:], "where key"), "not_exists")
+    if FIELD_RE.fullmatch(value):
+        return WhereCondition(value, "exists")
+    match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_.-]*)(>=|<=|!=|=|>|<)(.+)", value)
+    if not match:
+        raise CommandError("--where must be KEY, !KEY, or KEY[!=<>]=VALUE")
+    key, operator, expected = match.groups()
+    return WhereCondition(_field(key, "where key"), operator, expected)
+
+
 def parse_slack_thread_url(url: str) -> tuple[str, str]:
     """Return channel ID and Slack timestamp from a permalink to a root post."""
     match = SLACK_URL_RE.fullmatch(url)
@@ -114,4 +134,3 @@ USAGE = (
     "Usage: @thread-plot <y...> [--x <x>] [--where <key=value>] "
     "[--last N] [--smooth N] [--title TEXT] [--url THREAD_ROOT_URL]"
 )
-

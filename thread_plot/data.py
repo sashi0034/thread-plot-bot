@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Mapping
 
-from .command import PlotCommand
+from .command import PlotCommand, WhereCondition
 
 
 @dataclass(frozen=True)
@@ -26,6 +26,31 @@ def parse_fields(text: str) -> dict[str, str]:
     return fields
 
 
+def matches_where(fields: Mapping[str, str], condition: WhereCondition) -> bool:
+    """Match presence and text/numeric conditions against one extracted row."""
+    if condition.operator == "exists":
+        return condition.key in fields
+    if condition.operator == "not_exists":
+        return condition.key not in fields
+    actual = fields.get(condition.key)
+    if actual is None:
+        return False
+    if condition.operator == "=":
+        return actual == condition.value
+    if condition.operator == "!=":
+        return actual != condition.value
+    try:
+        left, right = float(actual), float(condition.value)
+    except (TypeError, ValueError):
+        return False
+    return {
+        ">": left > right,
+        ">=": left >= right,
+        "<": left < right,
+        "<=": left <= right,
+    }[condition.operator]
+
+
 def build_plot_data(messages: Iterable[Mapping[str, str]], command: PlotCommand) -> PlotData:
     """Filter records and return aligned numeric values in input (chronological) order."""
     filtered = [
@@ -34,7 +59,7 @@ def build_plot_data(messages: Iterable[Mapping[str, str]], command: PlotCommand)
     ]
     filtered = [
         fields for fields in filtered
-        if all(fields.get(key) == expected for key, expected in command.where)
+        if all(matches_where(fields, condition) for condition in command.where)
     ]
     if command.last is not None:
         filtered = filtered[-command.last:]
@@ -69,4 +94,3 @@ def moving_average(values: tuple[float, ...], window: int | None) -> tuple[float
         sample = values[max(0, index - window + 1):index + 1]
         result.append(sum(sample) / len(sample))
     return tuple(result)
-

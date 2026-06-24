@@ -1,6 +1,6 @@
 import unittest
 
-from thread_plot.command import CommandError, parse_command, parse_slack_thread_url
+from thread_plot.command import CommandError, WhereCondition, parse_command, parse_slack_thread_url
 
 
 class CommandTests(unittest.TestCase):
@@ -12,7 +12,10 @@ class CommandTests(unittest.TestCase):
         )
         self.assertEqual(command.y_fields, ("reward", "loss"))
         self.assertEqual(command.x_field, "episode")
-        self.assertEqual(command.where, (("curriculum", "survival"), ("is_success", "true")))
+        self.assertEqual(
+            command.where,
+            (WhereCondition("curriculum", "=", "survival"), WhereCondition("is_success", "=", "true")),
+        )
         self.assertEqual((command.last, command.smooth, command.title), (100, 10, "Training metrics"))
         self.assertEqual(parse_slack_thread_url(command.url), ("C0B6GPFJ1FU", "1782284445.513339"))
 
@@ -22,5 +25,19 @@ class CommandTests(unittest.TestCase):
         with self.assertRaises(CommandError):
             parse_command("reward --last 0")
         with self.assertRaises(CommandError):
-            parse_command("reward --where broken")
+            parse_command("reward --where =broken")
 
+    def test_parse_all_where_forms(self):
+        command = parse_command("reward --where flag --where !debug --where score!=0 --where x>1 --where x>=2 --where x<3 --where x<=4")
+        self.assertEqual(
+            command.where,
+            (
+                WhereCondition("flag", "exists"),
+                WhereCondition("debug", "not_exists"),
+                WhereCondition("score", "!=", "0"),
+                WhereCondition("x", ">", "1"),
+                WhereCondition("x", ">=", "2"),
+                WhereCondition("x", "<", "3"),
+                WhereCondition("x", "<=", "4"),
+            ),
+        )

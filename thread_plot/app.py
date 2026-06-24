@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 
-from .command import CommandError, USAGE, parse_command, parse_slack_thread_url
+from .command import CommandError, USAGE, WhereCondition, parse_command, parse_slack_thread_url
 from .data import build_plot_data
 from .plot import render_plot
 from .routing import destinations
@@ -21,10 +21,10 @@ from .slack_service import SlackService
 MENTION_RE = re.compile(r"<@[A-Z0-9]+>")
 
 
-def _summary(included: int, excluded: int, where: tuple[tuple[str, str], ...]) -> str:
+def _summary(included: int, excluded: int, where: tuple[WhereCondition, ...]) -> str:
     parts = [f"Generated graph from {included} row(s)"]
     if where:
-        parts.append("where " + ", ".join(f"{key}={value}" for key, value in where))
+        parts.append("where " + ", ".join(condition.display() for condition in where))
     if excluded:
         parts.append(f"excluded {excluded} invalid row(s)")
     return " · ".join(parts)
