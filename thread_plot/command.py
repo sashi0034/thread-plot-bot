@@ -124,6 +124,10 @@ def parse_where(value: str) -> WhereCondition:
 
 def parse_slack_thread_url(url: str) -> tuple[str, str]:
     """Return channel ID and Slack timestamp from a permalink to a root post."""
+    # Slack encodes pasted links in event payloads as <URL|display text>.
+    # Accept both that mrkdwn representation and an ordinary URL.
+    if url.startswith("<") and url.endswith(">"):
+        url = url[1:-1].split("|", 1)[0]
     match = SLACK_URL_RE.fullmatch(url)
     if not match:
         raise CommandError("--url must be a Slack /archives/<channel>/p<timestamp> URL")

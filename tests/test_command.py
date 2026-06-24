@@ -19,6 +19,10 @@ class CommandTests(unittest.TestCase):
         self.assertEqual((command.last, command.smooth, command.title), (100, 10, "Training metrics"))
         self.assertEqual(parse_slack_thread_url(command.url), ("C0B6GPFJ1FU", "1782284445.513339"))
 
+    def test_parse_slack_mrkdwn_url(self):
+        url = "<https://kmc-jp.slack.com/archives/C0B6GPFJ1FU/p1782284445513339|thread link>"
+        self.assertEqual(parse_slack_thread_url(url), ("C0B6GPFJ1FU", "1782284445.513339"))
+
     def test_invalid_options_are_rejected(self):
         with self.assertRaises(CommandError):
             parse_command("reward --bogus 1")

@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import tempfile
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +48,10 @@ def register_handlers(app: App) -> None:
     @app.event("app_mention")
     def handle_mention(event: dict[str, Any], client: Any, logger: Any) -> None:
         try:
+            logger.info(
+                "thread-plot received mention: channel=%s ts=%s thread_ts=%s text=%r",
+                event.get("channel"), event.get("ts"), event.get("thread_ts"), event.get("text"),
+            )
             command = parse_command(MENTION_RE.sub("", event.get("text", "")).strip())
             if command.url:
                 target_channel, target_root_ts = parse_slack_thread_url(command.url)
@@ -57,8 +62,21 @@ def register_handlers(app: App) -> None:
 
             service = SlackService(client)
             raw_messages = service.thread_messages(target_channel, target_root_ts)
+            logger.info(
+                "thread-plot fetched %d messages: target_channel=%s target_root_ts=%s",
+                len(raw_messages), target_channel, target_root_ts,
+            )
+            for message in raw_messages:
+                logger.debug(
+                    "thread-plot message: ts=%s bot_id=%s user=%s text=%r",
+                    message.get("ts"), message.get("bot_id"), message.get("user"), message.get("text", ""),
+                )
             messages = metric_messages(raw_messages, event["ts"])
             data = build_plot_data(messages, command)
+            logger.info(
+                "thread-plot parsed rows: included=%d excluded=%d y=%s x=%s where=%s",
+                data.included, data.excluded, command.y_fields, command.x_field, command.where,
+            )
             if not data.included:
                 raise CommandError("No valid matching rows were found.")
 
@@ -82,6 +100,7 @@ def register_handlers(app: App) -> None:
             finally:
                 output_path.unlink(missing_ok=True)
         except CommandError as error:
+            logger.warning("thread-plot command error: %s; event_text=%r", error, event.get("text", ""))
             _reply_error(client, event, str(error))
         except Exception:
             logger.exception("thread-plot failed")
@@ -90,6 +109,10 @@ def register_handlers(app: App) -> None:
 
 def main() -> None:
     load_dotenv()
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO").upper(),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     bot_token = os.environ.get("SLACK_BOT_TOKEN")
     app_token = os.environ.get("SLACK_APP_TOKEN")
     if not bot_token or not app_token:
