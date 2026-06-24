@@ -1,0 +1,26 @@
+import unittest
+
+from thread_plot.command import CommandError, parse_command, parse_slack_thread_url
+
+
+class CommandTests(unittest.TestCase):
+    def test_parse_all_options_and_repeated_where(self):
+        command = parse_command(
+            'reward loss --x episode --where curriculum=survival --where is_success=true '
+            '--last 100 --smooth 10 --title "Training metrics" '
+            '--url https://example.slack.com/archives/C0B6GPFJ1FU/p1782284445513339'
+        )
+        self.assertEqual(command.y_fields, ("reward", "loss"))
+        self.assertEqual(command.x_field, "episode")
+        self.assertEqual(command.where, (("curriculum", "survival"), ("is_success", "true")))
+        self.assertEqual((command.last, command.smooth, command.title), (100, 10, "Training metrics"))
+        self.assertEqual(parse_slack_thread_url(command.url), ("C0B6GPFJ1FU", "1782284445.513339"))
+
+    def test_invalid_options_are_rejected(self):
+        with self.assertRaises(CommandError):
+            parse_command("reward --bogus 1")
+        with self.assertRaises(CommandError):
+            parse_command("reward --last 0")
+        with self.assertRaises(CommandError):
+            parse_command("reward --where broken")
+

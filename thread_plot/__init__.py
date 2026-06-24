@@ -1,0 +1,2 @@
+"""Thread Plot Slack bot."""
+

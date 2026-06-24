@@ -1,0 +1,26 @@
+display_information:
+  name: thread-plot
+  description: Plot key=value logs from a Slack thread.
+  background_color: "#1d4ed8"
+features:
+  bot_user:
+    display_name: thread-plot
+    always_online: false
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - channels:history
+      - groups:history
+      - chat:write
+      - files:write
+settings:
+  socket_mode_enabled: true
+  token_rotation_enabled: false
+  event_subscriptions:
+    bot_events:
+      - app_mention
+  org_deploy_enabled: false
+  interactivity:
+    is_enabled: false
+
