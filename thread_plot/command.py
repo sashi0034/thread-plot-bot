@@ -30,17 +30,46 @@ class WhereCondition:
 
 @dataclass(frozen=True)
 class PlotCommand:
-    y_fields: tuple[str, ...]
+    y_fields: tuple[str, ...] = ()
     x_field: str | None = None
     where: tuple[WhereCondition, ...] = ()
     last: int | None = None
     smooth: int | None = None
     title: str | None = None
+    # ``url`` remains the first URL for compatibility with single-target
+    # callers; new code should use ``urls``.
     url: str | None = None
+    urls: tuple[str, ...] = ()
+    specified: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        if self.urls and self.url is None:
+            object.__setattr__(self, "url", self.urls[0])
+        elif self.url and not self.urls:
+            object.__setattr__(self, "urls", (self.url,))
+        elif self.url and self.urls and self.url != self.urls[0]:
+            raise ValueError("url must be the first value in urls")
 
     @property
     def display_title(self) -> str:
         return self.title or f"{', '.join(self.y_fields)} vs {self.x_field or 'message order'}"
+
+    def inherit(self, previous: "PlotCommand | None") -> "PlotCommand":
+        """Fill values omitted from this command from the user's prior command."""
+        if previous is None:
+            if not self.y_fields:
+                raise CommandError("No previous settings found; specify at least one y field.")
+            return self
+        return PlotCommand(
+            y_fields=self.y_fields if "y" in self.specified else previous.y_fields,
+            x_field=self.x_field if "--x" in self.specified else previous.x_field,
+            where=self.where if "--where" in self.specified else previous.where,
+            last=self.last if "--last" in self.specified else previous.last,
+            smooth=self.smooth if "--smooth" in self.specified else previous.smooth,
+            title=self.title if "--title" in self.specified else previous.title,
+            urls=self.urls if "--url" in self.specified else previous.urls,
+            specified=self.specified,
+        )
 
 
 def _field(value: str, label: str) -> str:
@@ -65,15 +94,19 @@ def parse_command(text: str) -> PlotCommand:
     while index < len(tokens) and not tokens[index].startswith("--"):
         y_fields.append(_field(tokens[index], "y"))
         index += 1
-    if not y_fields:
-        raise CommandError("at least one y field is required")
+
+    # A bare ``--`` makes an otherwise empty repeat command unambiguous.
+    if index < len(tokens) and tokens[index] == "--":
+        index += 1
+        if index < len(tokens):
+            raise CommandError("-- may only be used by itself")
 
     x_field: str | None = None
     where: list[WhereCondition] = []
     last: int | None = None
     smooth: int | None = None
     title: str | None = None
-    url: str | None = None
+    urls: list[str] = []
     seen: set[str] = set()
 
     while index < len(tokens):
@@ -83,11 +116,39 @@ def parse_command(text: str) -> PlotCommand:
             raise CommandError(f"unknown option: {option}")
         if index == len(tokens):
             raise CommandError(f"{option} needs a value")
-        value = tokens[index]
-        index += 1
         if option != "--where" and option in seen:
             raise CommandError(f"{option} may only be given once")
         seen.add(option)
+        if option == "--url":
+            url_tokens: list[str] = []
+            while index < len(tokens) and not tokens[index].startswith("--"):
+                url_tokens.append(tokens[index])
+                index += 1
+            if not url_tokens:
+                raise CommandError("--url needs a value")
+            url_text = " ".join(url_tokens)
+            # Slack turns pasted links into ``<URL|label>``.  In particular,
+            # several pasted links are normally separated by spaces, not
+            # commas, so extract complete mrkdwn links before splitting.
+            mrkdwn_urls = re.findall(r"<[^>]+>", url_text)
+            if mrkdwn_urls:
+                remainder = re.sub(r"<[^>]+>", "", url_text).replace(",", "").strip()
+                if remainder:
+                    raise CommandError("--url must contain only Slack thread URLs")
+                pieces = mrkdwn_urls
+            elif "," in url_text:
+                pieces = [piece.strip() for piece in url_text.split(",")]
+            else:
+                pieces = url_tokens
+            if any(not piece for piece in pieces):
+                raise CommandError("--url values must be Slack thread URLs")
+            for url in pieces:
+                parse_slack_thread_url(url)
+                urls.append(url)
+            continue
+
+        value = tokens[index]
+        index += 1
         if option == "--x":
             x_field = _field(value, "x")
         elif option == "--where":
@@ -105,11 +166,23 @@ def parse_command(text: str) -> PlotCommand:
                 smooth = number
         elif option == "--title":
             title = value
-        else:
-            parse_slack_thread_url(value)
-            url = value
+        else:  # pragma: no cover - every supported option is handled above.
+            raise AssertionError(f"unhandled option: {option}")
 
-    return PlotCommand(tuple(y_fields), x_field, tuple(where), last, smooth, title, url)
+    if not y_fields and not seen and len(tokens) != 1:
+        raise CommandError("at least one y field is required")
+
+    specified = frozenset({"y"} if y_fields else set()) | frozenset(seen)
+    return PlotCommand(
+        y_fields=tuple(y_fields),
+        x_field=x_field,
+        where=tuple(where),
+        last=last,
+        smooth=smooth,
+        title=title,
+        urls=tuple(urls),
+        specified=specified,
+    )
 
 
 def parse_where(value: str) -> WhereCondition:
@@ -138,6 +211,6 @@ def parse_slack_thread_url(url: str) -> tuple[str, str]:
 
 
 USAGE = (
-    "Usage: @thread-plot <y...> [--x <x>] [--where <key=value>] "
-    "[--last N] [--smooth N] [--title TEXT] [--url THREAD_ROOT_URL]"
+    "Usage: @thread-plot [<y...>] [--x <x>] [--where <key=value>] "
+    "[--last N] [--smooth N] [--title TEXT] [--url URL [URL ...]]"
 )

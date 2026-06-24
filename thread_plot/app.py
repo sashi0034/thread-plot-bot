@@ -15,6 +15,7 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from .command import CommandError, USAGE, WhereCondition, parse_command, parse_slack_thread_url
 from .data import build_plot_data
+from .history import CommandHistory
 from .plot import render_plot
 from .routing import destinations
 from .slack_service import SlackService
@@ -53,7 +54,9 @@ def metric_messages(raw_messages: list[dict[str, Any]], command_ts: str) -> list
     return [message for message in raw_messages if message.get("ts") != command_ts]
 
 
-def register_handlers(app: App) -> None:
+def register_handlers(app: App, history: CommandHistory | None = None) -> None:
+    history = history or CommandHistory()
+
     @app.event("app_mention")
     def handle_mention(event: dict[str, Any], client: Any, logger: Any) -> None:
         try:
@@ -61,62 +64,69 @@ def register_handlers(app: App) -> None:
                 "thread-plot received mention: channel=%s ts=%s thread_ts=%s text=%r",
                 event.get("channel"), event.get("ts"), event.get("thread_ts"), event.get("text"),
             )
-            command = parse_command(MENTION_RE.sub("", event.get("text", "")).strip())
-            if command.url:
-                target_channel, target_root_ts = parse_slack_thread_url(command.url)
-            else:
-                if not event.get("thread_ts"):
-                    raise CommandError("Run this command in a thread, or supply --url THREAD_ROOT_URL.")
-                target_channel, target_root_ts = event["channel"], event["thread_ts"]
-
+            partial = parse_command(MENTION_RE.sub("", event.get("text", "")).strip())
+            user_id = event.get("user")
+            if not isinstance(user_id, str) or not user_id:
+                raise CommandError("Only user messages can reuse plot settings.")
+            command = history.resolve(user_id, partial)
             service = SlackService(client)
-            raw_messages = service.thread_messages(target_channel, target_root_ts)
-            logger.info(
-                "thread-plot fetched %d messages: target_channel=%s target_root_ts=%s",
-                len(raw_messages), target_channel, target_root_ts,
-            )
-            root_message = next((message for message in raw_messages if message.get("ts") == target_root_ts), None)
-            logger.info(
-                "thread-plot target root text=%r",
-                root_message.get("text", "") if root_message else "",
-            )
-            for message in raw_messages:
-                logger.debug(
-                    "thread-plot message: ts=%s bot_id=%s user=%s text=%r",
-                    message.get("ts"), message.get("bot_id"), message.get("user"), message.get("text", ""),
-                )
-            messages = metric_messages(raw_messages, event["ts"])
-            data = build_plot_data(messages, command)
-            logger.info(
-                "thread-plot parsed rows: included=%d excluded=%d y=%s x=%s where=%s",
-                data.included, data.excluded, command.y_fields, command.x_field, command.where,
-            )
-            if not data.included:
-                raise CommandError("No valid matching rows were found.")
+            targets = command.urls or (None,)
+            for target_url in targets:
+                if target_url:
+                    target_channel, target_root_ts = parse_slack_thread_url(target_url)
+                else:
+                    if not event.get("thread_ts"):
+                        raise CommandError("Run this command in a thread, or supply --url THREAD_ROOT_URL.")
+                    target_channel, target_root_ts = event["channel"], event["thread_ts"]
 
-            with tempfile.NamedTemporaryFile(prefix="thread-plot-", suffix=".png", delete=False) as output:
-                output_path = Path(output.name)
-            try:
-                render_plot(
-                    data,
-                    title=command.display_title,
-                    x_label=command.x_field or "message order",
-                    smooth=command.smooth,
-                    path=output_path,
+                raw_messages = service.thread_messages(target_channel, target_root_ts)
+                logger.info(
+                    "thread-plot fetched %d messages: target_channel=%s target_root_ts=%s",
+                    len(raw_messages), target_channel, target_root_ts,
                 )
-                summary = _summary(data.included, data.excluded, command.where)
-                for destination in destinations(
-                    has_url=command.url is not None,
-                    target_channel=target_channel,
-                    target_root_ts=target_root_ts,
-                ):
-                    permalink = service.upload_plot(output_path, destination.channel, summary, destination.thread_ts)
-                    if command.url and permalink:
-                        service.share_file_link(destination.channel, destination.thread_ts, summary, permalink)
-                    elif command.url:
-                        logger.warning("thread-plot upload did not return a file permalink; not sharing a channel link")
-            finally:
-                output_path.unlink(missing_ok=True)
+                root_message = next((message for message in raw_messages if message.get("ts") == target_root_ts), None)
+                logger.info(
+                    "thread-plot target root text=%r",
+                    root_message.get("text", "") if root_message else "",
+                )
+                for message in raw_messages:
+                    logger.debug(
+                        "thread-plot message: ts=%s bot_id=%s user=%s text=%r",
+                        message.get("ts"), message.get("bot_id"), message.get("user"), message.get("text", ""),
+                    )
+                messages = metric_messages(raw_messages, event["ts"])
+                data = build_plot_data(messages, command)
+                logger.info(
+                    "thread-plot parsed rows: included=%d excluded=%d y=%s x=%s where=%s",
+                    data.included, data.excluded, command.y_fields, command.x_field, command.where,
+                )
+                if not data.included:
+                    raise CommandError("No valid matching rows were found.")
+
+                with tempfile.NamedTemporaryFile(prefix="thread-plot-", suffix=".png", delete=False) as output:
+                    output_path = Path(output.name)
+                try:
+                    render_plot(
+                        data,
+                        title=command.display_title,
+                        x_label=command.x_field or "message order",
+                        smooth=command.smooth,
+                        path=output_path,
+                    )
+                    summary = _summary(data.included, data.excluded, command.where)
+                    for destination in destinations(
+                        has_url=target_url is not None,
+                        target_channel=target_channel,
+                        target_root_ts=target_root_ts,
+                    ):
+                        permalink = service.upload_plot(output_path, destination.channel, summary, destination.thread_ts)
+                        if target_url and permalink:
+                            service.share_file_link(destination.channel, destination.thread_ts, summary, permalink)
+                        elif target_url:
+                            logger.warning("thread-plot upload did not return a file permalink; not sharing a channel link")
+                finally:
+                    output_path.unlink(missing_ok=True)
+            history.save(user_id, command)
         except CommandError as error:
             logger.warning("thread-plot command error: %s; event_text=%r", error, event.get("text", ""))
             _reply_error(client, event, str(error))

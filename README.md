@@ -44,6 +44,19 @@ reward=1.2 episode=10 curriculum=survival is_success=true
 @thread-plot reward --x episode --url "https://workspace.slack.com/archives/C0123456789/p1712345678901234"
 ```
 
+各ユーザーの直近の成功したコマンド設定は、ボットの起動中だけ記憶されます。`@thread-plot --` でその設定を再実行できます。y フィールドを省略したコマンドでは、未指定の項目を前回設定から引き継ぎます。
+
+```text
+@thread-plot --
+@thread-plot --url "https://workspace.slack.com/archives/C0123456789/p1712345678901234"
+```
+
+`--url` の後ろに空白区切りで複数のスレッド URL を渡せます。Slack が貼り付けリンクを展開した `<URL|表示URL>` 形式にも対応しています。各スレッドに同じ設定で個別にグラフを投稿します。
+
+```text
+@thread-plot reward --x episode --url https://workspace.slack.com/archives/C0123456789/p1712345678901234 https://workspace.slack.com/archives/C0123456789/p1712345678905678
+```
+
 親投稿と他ボットのログ投稿も集計します。コマンド投稿だけは除外し、必須の y または x が数値でない投稿は除外され、結果要約に件数が表示されます。
 
 ## テスト
