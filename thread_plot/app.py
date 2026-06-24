@@ -34,6 +34,15 @@ def _reply_error(client: Any, event: dict[str, Any], message: str) -> None:
     client.chat_postMessage(channel=event["channel"], thread_ts=event.get("thread_ts") or event["ts"], text=f"{message}\n{USAGE}")
 
 
+def metric_messages(raw_messages: list[dict[str, Any]], command_ts: str) -> list[dict[str, Any]]:
+    """Keep every row except this invocation's command message.
+
+    Training metrics are often posted by a separate Slack bot, so filtering on
+    ``bot_id`` would incorrectly remove the data we need to graph.
+    """
+    return [message for message in raw_messages if message.get("ts") != command_ts]
+
+
 def register_handlers(app: App) -> None:
     @app.event("app_mention")
     def handle_mention(event: dict[str, Any], client: Any, logger: Any) -> None:
@@ -48,11 +57,7 @@ def register_handlers(app: App) -> None:
 
             service = SlackService(client)
             raw_messages = service.thread_messages(target_channel, target_root_ts)
-            messages = [
-                message for message in raw_messages
-                if message.get("ts") not in {target_root_ts, event.get("ts")}
-                and message.get("bot_id") is None
-            ]
+            messages = metric_messages(raw_messages, event["ts"])
             data = build_plot_data(messages, command)
             if not data.included:
                 raise CommandError("No valid matching rows were found.")
@@ -96,4 +101,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -40,11 +40,10 @@ reward=1.2 episode=10 curriculum=survival is_success=true
 @thread-plot reward --x episode --url "https://workspace.slack.com/archives/C0123456789/p1712345678901234"
 ```
 
-親投稿、コマンド投稿、ボット投稿はデータ対象外です。必須の y または x が数値でない投稿は除外され、結果要約に件数が表示されます。
+親投稿と他ボットのログ投稿も集計します。コマンド投稿だけは除外し、必須の y または x が数値でない投稿は除外され、結果要約に件数が表示されます。
 
 ## テスト
 
 ```bash
 python -m unittest discover -s tests -v
 ```
-
