@@ -1,6 +1,7 @@
 import unittest
 
 from thread_plot.command import CommandError, WhereCondition, parse_command, parse_slack_thread_url
+from thread_plot.history import CommandHistory
 
 
 class CommandTests(unittest.TestCase):
@@ -49,3 +50,63 @@ class CommandTests(unittest.TestCase):
                 WhereCondition("x", "<=", "4"),
             ),
         )
+
+    def test_parse_multiple_comma_separated_urls(self):
+        command = parse_command(
+            "reward --url "
+            "https://example.slack.com/archives/C0B6GPFJ1FU/p1782284445513339, "
+            "https://example.slack.com/archives/C0B6GPFJ1FU/p1782284445514444"
+        )
+
+        self.assertEqual(
+            command.urls,
+            (
+                "https://example.slack.com/archives/C0B6GPFJ1FU/p1782284445513339",
+                "https://example.slack.com/archives/C0B6GPFJ1FU/p1782284445514444",
+            ),
+        )
+        self.assertEqual(command.url, command.urls[0])
+
+    def test_parse_space_separated_slack_mrkdwn_urls(self):
+        command = parse_command(
+            "success_rate --x update --url "
+            "<https://example.slack.com/archives/C0B6GPFJ1FU/p1782284445513339|https://example.slack.com/archives/C0B6GPFJ1FU/p1782284445513339> "
+            "<https://example.slack.com/archives/C0B6GPFJ1FU/p1782302052704059|https://example.slack.com/archives/C0B6GPFJ1FU/p1782302052704059> "
+            "<https://example.slack.com/archives/C0B6GPFJ1FU/p1782302100486919|https://example.slack.com/archives/C0B6GPFJ1FU/p1782302100486919>"
+        )
+
+        self.assertEqual(len(command.urls), 3)
+        self.assertEqual(
+            [parse_slack_thread_url(url) for url in command.urls],
+            [
+                ("C0B6GPFJ1FU", "1782284445.513339"),
+                ("C0B6GPFJ1FU", "1782302052.704059"),
+                ("C0B6GPFJ1FU", "1782302100.486919"),
+            ],
+        )
+
+    def test_omitted_values_inherit_the_user_previous_settings(self):
+        history = CommandHistory()
+        original = parse_command(
+            "reward loss --x episode --where curriculum=survival --last 100 --smooth 10 "
+            "--title 'Training metrics'"
+        )
+        history.save("U1", original)
+
+        repeated = history.resolve("U1", parse_command("--"))
+        changed_url = history.resolve(
+            "U1",
+            parse_command("--url https://example.slack.com/archives/C0B6GPFJ1FU/p1782284445513339"),
+        )
+
+        self.assertEqual(repeated.y_fields, ("reward", "loss"))
+        self.assertEqual(repeated.x_field, "episode")
+        self.assertEqual(repeated.where, (WhereCondition("curriculum", "=", "survival"),))
+        self.assertEqual((repeated.last, repeated.smooth, repeated.title), (100, 10, "Training metrics"))
+        self.assertEqual(changed_url.y_fields, ("reward", "loss"))
+        self.assertEqual(changed_url.x_field, "episode")
+        self.assertEqual(changed_url.urls, ("https://example.slack.com/archives/C0B6GPFJ1FU/p1782284445513339",))
+
+    def test_repeat_without_a_prior_command_is_rejected(self):
+        with self.assertRaisesRegex(CommandError, "No previous settings"):
+            CommandHistory().resolve("U1", parse_command("--"))
