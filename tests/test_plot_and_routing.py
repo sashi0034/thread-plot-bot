@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 
 from thread_plot.data import PlotData
-from thread_plot.plot import render_plot, x_tick_values
+from thread_plot.plot import HEIGHT, render_plot, x_tick_values
 from thread_plot.routing import Destination, destinations
 
 
@@ -32,3 +32,16 @@ class PlotAndRoutingTests(unittest.TestCase):
         self.assertEqual(ticks[0], 481.0)
         self.assertEqual(ticks[-1], 650.0)
         self.assertTrue(all(tick in values and tick.is_integer() for tick in ticks))
+
+    def test_three_series_expand_to_independent_vertical_panels(self):
+        data = PlotData(
+            (1.0, 2.0),
+            {"success_rate": (0.1, 0.9), "loss": (100.0, 10.0), "entropy": (0.001, 0.002)},
+            2,
+            0,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "multi.png"
+            render_plot(data, title="Metrics", x_label="update", smooth=None, path=path)
+            with Image.open(path) as image:
+                self.assertGreater(image.height, HEIGHT)
