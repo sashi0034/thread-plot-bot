@@ -12,7 +12,5 @@ class Destination:
 
 
 def destinations(*, has_url: bool, target_channel: str, target_root_ts: str) -> tuple[Destination, ...]:
-    """Normal invocations reply in-thread; URL invocations also post in-channel."""
-    thread = Destination(target_channel, target_root_ts)
-    return (thread, Destination(target_channel, None)) if has_url else (thread,)
-
+    """Every invocation attaches the chart to its target thread."""
+    return (Destination(target_channel, target_root_ts),)

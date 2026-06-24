@@ -23,5 +23,5 @@ class PlotAndRoutingTests(unittest.TestCase):
         self.assertEqual(destinations(has_url=False, target_channel="C1", target_root_ts="1.2"), (Destination("C1", "1.2"),))
         self.assertEqual(
             destinations(has_url=True, target_channel="C1", target_root_ts="1.2"),
-            (Destination("C1", "1.2"), Destination("C1", None)),
+            (Destination("C1", "1.2"),),
         )

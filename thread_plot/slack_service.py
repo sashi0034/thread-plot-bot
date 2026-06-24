@@ -20,7 +20,7 @@ class SlackService:
             if not cursor:
                 return messages
 
-    def upload_plot(self, path: str | Path, destination_channel: str, summary: str, thread_ts: str | None) -> None:
+    def upload_plot(self, path: str | Path, destination_channel: str, summary: str, thread_ts: str | None) -> str | None:
         kwargs: dict[str, Any] = {
             "channel": destination_channel,
             "file": str(path),
@@ -30,5 +30,18 @@ class SlackService:
         }
         if thread_ts is not None:
             kwargs["thread_ts"] = thread_ts
-        self.client.files_upload_v2(**kwargs)
+        response = self.client.files_upload_v2(**kwargs)
+        uploaded_file = response.get("file") or next(iter(response.get("files", [])), {})
+        permalink = uploaded_file.get("permalink") if isinstance(uploaded_file, dict) else None
+        return permalink if isinstance(permalink, str) else None
 
+    def share_file_link(
+        self, destination_channel: str, thread_ts: str, summary: str, permalink: str
+    ) -> None:
+        """Post a broadcast reply linking to an uploaded file."""
+        self.client.chat_postMessage(
+            channel=destination_channel,
+            thread_ts=thread_ts,
+            reply_broadcast=True,
+            text=f"{summary}\n{permalink}",
+        )

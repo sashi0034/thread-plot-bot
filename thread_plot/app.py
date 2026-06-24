@@ -96,7 +96,11 @@ def register_handlers(app: App) -> None:
                     target_channel=target_channel,
                     target_root_ts=target_root_ts,
                 ):
-                    service.upload_plot(output_path, destination.channel, summary, destination.thread_ts)
+                    permalink = service.upload_plot(output_path, destination.channel, summary, destination.thread_ts)
+                    if command.url and permalink:
+                        service.share_file_link(destination.channel, destination.thread_ts, summary, permalink)
+                    elif command.url:
+                        logger.warning("thread-plot upload did not return a file permalink; not sharing a channel link")
             finally:
                 output_path.unlink(missing_ok=True)
         except CommandError as error:

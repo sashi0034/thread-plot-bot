@@ -36,7 +36,7 @@ reward=1.2 episode=10 curriculum=survival is_success=true
 
 `--x` を省略すると投稿順を横軸にします。`--where` は複数指定でき、すべての条件に一致する投稿だけを残します。`key=value` / `key!=value` は文字列比較、`key>value` / `key>=value` / `key<value` / `key<=value` は数値比較、`key` はフィールドが存在する投稿、`!key` はフィールドがない投稿を指定します。`--last` は絞り込み後の最新 N 投稿に適用し、`--smooth` は単純移動平均の窓幅です。`--title` に空白を含める場合は引用符で囲んでください。
 
-別スレッドを対象にするには `--url` へスレッド親投稿の Slack URL を指定します。その場合は指定先スレッドと、そのチャンネル直下の両方に結果を投稿します。
+別スレッドを対象にするには `--url` へスレッド親投稿の Slack URL を指定します。その場合は指定先スレッドへグラフを投稿し、ファイルの Slack permalink を含むブロードキャスト返信も投稿します。
 
 ```text
 @thread-plot reward --x episode --url "https://workspace.slack.com/archives/C0123456789/p1712345678901234"
