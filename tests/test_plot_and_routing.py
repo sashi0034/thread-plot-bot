@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 
 from thread_plot.data import PlotData
-from thread_plot.plot import render_plot
+from thread_plot.plot import render_plot, x_tick_values
 from thread_plot.routing import Destination, destinations
 
 
@@ -25,3 +25,10 @@ class PlotAndRoutingTests(unittest.TestCase):
             destinations(has_url=True, target_channel="C1", target_root_ts="1.2"),
             (Destination("C1", "1.2"),),
         )
+
+    def test_integer_x_ticks_are_observed_integer_values(self):
+        values = (481.0, 487.0, 500.0, 515.0, 540.0, 600.0, 650.0)
+        ticks = x_tick_values(values, 467.48, 663.52)
+        self.assertEqual(ticks[0], 481.0)
+        self.assertEqual(ticks[-1], 650.0)
+        self.assertTrue(all(tick in values and tick.is_integer() for tick in ticks))

@@ -37,6 +37,19 @@ def _point(value: float, low: float, high: float, start: float, end: float, inve
     return start + (end - start) * ratio
 
 
+def x_tick_values(values: tuple[float, ...], low: float, high: float, maximum: int = 6) -> tuple[float, ...]:
+    """Return readable x-axis ticks, preserving observed values for integer axes."""
+    if all(value.is_integer() for value in values):
+        observed = tuple(sorted(set(values)))
+        if len(observed) <= maximum:
+            return observed
+        # Select evenly distributed observed values. This always keeps the
+        # first/last data values and never fabricates an integer tick.
+        last = len(observed) - 1
+        return tuple(observed[index * last // (maximum - 1)] for index in range(maximum))
+    return tuple(low + (high - low) * tick / (maximum - 1) for tick in range(maximum))
+
+
 def render_plot(data: PlotData, *, title: str, x_label: str, smooth: int | None, path: str | Path) -> None:
     if not data.included:
         raise ValueError("no valid rows to plot")
@@ -57,11 +70,10 @@ def render_plot(data: PlotData, *, title: str, x_label: str, smooth: int | None,
         label = f"{value:.4g}"
         box = draw.textbbox((0, 0), label, font=small_font)
         draw.text((left - (box[2] - box[0]) - 10, y - 8), label, fill="#4b5563", font=small_font)
-    for tick in range(6):
-        x = left + (right - left) * tick / 5
-        value = x_low + (x_high - x_low) * tick / 5
+    for value in x_tick_values(data.x, x_low, x_high):
+        x = _point(value, x_low, x_high, left, right)
         draw.line((x, top, x, bottom), fill="#f3f4f6", width=1)
-        label = f"{value:.4g}"
+        label = str(int(value)) if value.is_integer() else f"{value:.4g}"
         box = draw.textbbox((0, 0), label, font=small_font)
         draw.text((x - (box[2] - box[0]) / 2, bottom + 12), label, fill="#4b5563", font=small_font)
     draw.line((left, top, left, bottom), fill="#374151", width=2)
@@ -87,4 +99,3 @@ def render_plot(data: PlotData, *, title: str, x_label: str, smooth: int | None,
         draw.text((legend_x + 23, 44), name, fill="#111827", font=small_font)
         legend_x -= 14
     image.save(path, "PNG")
-
