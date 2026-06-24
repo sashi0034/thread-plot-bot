@@ -14,7 +14,7 @@ python -m thread_plot.app
 
 `.env` に Slack App の Bot User OAuth Token（`xoxb-...`）と、`connections:write` を持つ App-Level Token（`xapp-...`）を設定してください。Socket Mode では Request URL は不要です。
 
-起動コンソールには、受信コマンド・対象スレッドの取得件数・抽出件数が `INFO` で出力されます。各投稿本文は `DEBUG` のみで出力するため、必要なときだけ `.env` に `LOG_LEVEL=DEBUG` を設定してください。
+起動コンソールには、受信コマンド・対象スレッドの親投稿本文・取得件数・抽出件数が `INFO` で出力されます。各返信投稿の本文は `DEBUG` のみで出力するため、必要なときだけ `.env` に `LOG_LEVEL=DEBUG` を設定してください。
 
 Slack の **From an app manifest** で [slack-manifest.yml](slack-manifest.yml) を読み込み、アプリをワークスペースへインストールします。プライベートチャンネルの履歴を読むには、ボットをそのチャンネルへ招待してください。
 

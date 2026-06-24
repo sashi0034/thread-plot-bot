@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from html import unescape
 import re
 import shlex
 
@@ -51,7 +52,9 @@ def _field(value: str, label: str) -> str:
 def parse_command(text: str) -> PlotCommand:
     """Parse command text after the Slack mention has been removed."""
     try:
-        tokens = shlex.split(text)
+        # Slack escapes comparison operators in event text (for example,
+        # ``update>500`` arrives as ``update&gt;500``).
+        tokens = shlex.split(unescape(text))
     except ValueError as error:
         raise CommandError(f"invalid quoting: {error}") from error
     if not tokens:

@@ -23,6 +23,10 @@ class CommandTests(unittest.TestCase):
         url = "<https://kmc-jp.slack.com/archives/C0B6GPFJ1FU/p1782284445513339|thread link>"
         self.assertEqual(parse_slack_thread_url(url), ("C0B6GPFJ1FU", "1782284445.513339"))
 
+    def test_parse_html_escaped_comparison_operator(self):
+        command = parse_command("success_rate --x update --where update&gt;500")
+        self.assertEqual(command.where, (WhereCondition("update", ">", "500"),))
+
     def test_invalid_options_are_rejected(self):
         with self.assertRaises(CommandError):
             parse_command("reward --bogus 1")

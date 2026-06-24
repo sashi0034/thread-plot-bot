@@ -66,6 +66,11 @@ def register_handlers(app: App) -> None:
                 "thread-plot fetched %d messages: target_channel=%s target_root_ts=%s",
                 len(raw_messages), target_channel, target_root_ts,
             )
+            root_message = next((message for message in raw_messages if message.get("ts") == target_root_ts), None)
+            logger.info(
+                "thread-plot target root text=%r",
+                root_message.get("text", "") if root_message else "",
+            )
             for message in raw_messages:
                 logger.debug(
                     "thread-plot message: ts=%s bot_id=%s user=%s text=%r",
