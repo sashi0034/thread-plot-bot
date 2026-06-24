@@ -32,7 +32,16 @@ def _summary(included: int, excluded: int, where: tuple[WhereCondition, ...]) ->
 
 
 def _reply_error(client: Any, event: dict[str, Any], message: str) -> None:
-    client.chat_postMessage(channel=event["channel"], thread_ts=event.get("thread_ts") or event["ts"], text=f"{message}\n{USAGE}")
+    kwargs: dict[str, Any] = {
+        "channel": event["channel"],
+        "text": f"{message}\n{USAGE}",
+    }
+    # Reply in the existing thread only when the command itself was posted in
+    # one. A channel-level command error must remain a channel-level message,
+    # rather than creating a thread rooted at the command post.
+    if thread_ts := event.get("thread_ts"):
+        kwargs["thread_ts"] = thread_ts
+    client.chat_postMessage(**kwargs)
 
 
 def metric_messages(raw_messages: list[dict[str, Any]], command_ts: str) -> list[dict[str, Any]]:
