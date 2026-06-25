@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from thread_plot.app import USAGE, _reply_error, metric_messages, register_handlers
 from thread_plot.history import CommandHistory
@@ -69,8 +69,9 @@ class AppTests(unittest.TestCase):
             ),
         }
 
-        handler(first, client, logger)
-        handler({**first, "ts": "9.1", "text": "<@B1> --"}, client, logger)
+        with patch("thread_plot.slack_service.time.sleep"):
+            handler(first, client, logger)
+            handler({**first, "ts": "9.1", "text": "<@B1> --"}, client, logger)
 
         self.assertEqual(client.conversations_replies.call_count, 4)
         self.assertEqual(client.files_upload_v2.call_count, 4)

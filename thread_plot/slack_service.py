@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
+
+
+FILE_LINK_BROADCAST_DELAY_SECONDS = 2.5
 
 
 class SlackService:
@@ -39,6 +43,7 @@ class SlackService:
         self, destination_channel: str, thread_ts: str, summary: str, permalink: str
     ) -> None:
         """Post a broadcast reply linking to an uploaded file."""
+        time.sleep(FILE_LINK_BROADCAST_DELAY_SECONDS)
         self.client.chat_postMessage(
             channel=destination_channel,
             thread_ts=thread_ts,

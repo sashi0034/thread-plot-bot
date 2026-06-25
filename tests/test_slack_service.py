@@ -1,7 +1,7 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, call, patch
 
-from thread_plot.slack_service import SlackService
+from thread_plot.slack_service import FILE_LINK_BROADCAST_DELAY_SECONDS, SlackService
 
 
 class SlackServiceTests(unittest.TestCase):
@@ -26,7 +26,25 @@ class SlackServiceTests(unittest.TestCase):
 
     def test_share_file_link_is_a_broadcast_thread_reply(self):
         client = Mock()
-        SlackService(client).share_file_link("C1", "1.0", "chart ready", "https://files.slack.com/plot.png")
+        timeline = Mock()
+        timeline.attach_mock(client.chat_postMessage, "post")
+        with patch("thread_plot.slack_service.time.sleep") as sleep:
+            timeline.attach_mock(sleep, "sleep")
+            SlackService(client).share_file_link("C1", "1.0", "chart ready", "https://files.slack.com/plot.png")
+
+        sleep.assert_called_once_with(FILE_LINK_BROADCAST_DELAY_SECONDS)
+        self.assertEqual(
+            timeline.mock_calls,
+            [
+                call.sleep(FILE_LINK_BROADCAST_DELAY_SECONDS),
+                call.post(
+                    channel="C1",
+                    thread_ts="1.0",
+                    reply_broadcast=True,
+                    text="chart ready\nhttps://files.slack.com/plot.png",
+                ),
+            ],
+        )
         self.assertEqual(
             client.chat_postMessage.call_args.kwargs,
             {
