@@ -25,6 +25,27 @@ class DataTests(unittest.TestCase):
         self.assertEqual(moving_average((1.0, 3.0, 8.0), 2), (1.0, 2.0, 5.5))
         self.assertEqual(parse_fields("flag=true x=1"), {"flag": "true", "x": "1"})
 
+    def test_fields_inside_slack_code_fence(self):
+        text = (
+            "update_1:\n"
+            "```curriculum=random_opponents_4 update=1 success_rate=0.5 reward=2.0\n"
+            "update_elapsed=7.0s```"
+        )
+        self.assertEqual(
+            parse_fields(text),
+            {
+                "curriculum": "random_opponents_4",
+                "update": "1",
+                "success_rate": "0.5",
+                "reward": "2.0",
+                "update_elapsed": "7.0s",
+            },
+        )
+        data = build_plot_data([{"text": text}], parse_command("success_rate reward --x update --where curriculum=random_opponents_4"))
+        self.assertEqual(data.x, (1.0,))
+        self.assertEqual(data.series["success_rate"], (0.5,))
+        self.assertEqual(data.series["reward"], (2.0,))
+
     def test_where_presence_text_and_numeric_comparisons(self):
         fields = parse_fields("flag=true score=2.5 mode=train")
         checks = {

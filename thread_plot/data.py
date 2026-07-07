@@ -20,6 +20,7 @@ def parse_fields(text: str) -> dict[str, str]:
     """Extract whitespace-delimited key=value fields; later duplicate keys win."""
     fields: dict[str, str] = {}
     for token in text.split():
+        token = token.strip("`")
         key, separator, value = token.partition("=")
         if separator and key and value:
             fields[key] = value
