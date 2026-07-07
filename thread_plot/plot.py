@@ -11,6 +11,9 @@ WIDTH, HEIGHT = 1100, 680
 MARGIN_LEFT, MARGIN_RIGHT, MARGIN_TOP, MARGIN_BOTTOM = 95, 35, 65, 95
 PANEL_GAP, MIN_PANEL_HEIGHT = 26, 210
 COLORS = ("#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2")
+LINE_GAP_MULTIPLIER = 3.0
+
+Point = tuple[float, float]
 
 
 def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -51,9 +54,41 @@ def x_tick_values(values: tuple[float, ...], low: float, high: float, maximum: i
     return tuple(low + (high - low) * tick / (maximum - 1) for tick in range(maximum))
 
 
+def _ordered_values(data: PlotData) -> tuple[tuple[float, ...], dict[str, tuple[float, ...]]]:
+    indexes = tuple(sorted(range(len(data.x)), key=lambda index: (data.x[index], index)))
+    return (
+        tuple(data.x[index] for index in indexes),
+        {name: tuple(values[index] for index in indexes) for name, values in data.series.items()},
+    )
+
+
+def line_segments(x_values: tuple[float, ...], points: list[Point]) -> tuple[tuple[Point, ...], ...]:
+    """Split a plotted line when adjacent x values have a large gap."""
+    if not points:
+        return ()
+    positive_gaps = sorted(
+        right - left
+        for left, right in zip(x_values, x_values[1:])
+        if right > left
+    )
+    if not positive_gaps:
+        return (tuple(points),)
+    typical_gap = positive_gaps[(len(positive_gaps) - 1) // 2]
+    max_connected_gap = max(typical_gap * LINE_GAP_MULTIPLIER, typical_gap)
+
+    segments: list[list[Point]] = [[points[0]]]
+    for left_x, right_x, point in zip(x_values, x_values[1:], points[1:]):
+        if right_x - left_x > max_connected_gap:
+            segments.append([point])
+        else:
+            segments[-1].append(point)
+    return tuple(tuple(segment) for segment in segments)
+
+
 def render_plot(data: PlotData, *, title: str, x_label: str, smooth: int | None, path: str | Path) -> None:
     if not data.included:
         raise ValueError("no valid rows to plot")
+    x_values, series_values = _ordered_values(data)
     series_count = len(data.series)
     required_height = MARGIN_TOP + MARGIN_BOTTOM + series_count * MIN_PANEL_HEIGHT + (series_count - 1) * PANEL_GAP
     image_height = max(HEIGHT, required_height)
@@ -62,10 +97,10 @@ def render_plot(data: PlotData, *, title: str, x_label: str, smooth: int | None,
     title_font, body_font, small_font = _font(24), _font(15), _font(13)
     left, right = MARGIN_LEFT, WIDTH - MARGIN_RIGHT
     top, bottom = MARGIN_TOP, image_height - MARGIN_BOTTOM
-    x_low, x_high = _range(list(data.x))
-    visible_series = {name: moving_average(values, smooth) for name, values in data.series.items()}
+    x_low, x_high = _range(list(x_values))
+    visible_series = {name: moving_average(values, smooth) for name, values in series_values.items()}
     panel_height = (bottom - top - PANEL_GAP * (series_count - 1)) / series_count
-    x_ticks = x_tick_values(data.x, x_low, x_high)
+    x_ticks = x_tick_values(x_values, x_low, x_high)
 
     draw.text((left, 22), title, fill="#111827", font=title_font)
 
@@ -90,13 +125,14 @@ def render_plot(data: PlotData, *, title: str, x_label: str, smooth: int | None,
         draw.text((left + 26, panel_top + 4), name, fill="#111827", font=body_font)
         points = [
             (_point(x, x_low, x_high, left, right), _point(y, y_low, y_high, panel_top, panel_bottom, True))
-            for x, y in zip(data.x, values)
+            for x, y in zip(x_values, values)
         ]
-        if len(points) == 1:
-            px, py = points[0]
-            draw.ellipse((px - 3, py - 3, px + 3, py + 3), fill=color)
-        else:
-            draw.line(points, fill=color, width=3, joint="curve")
+        for segment in line_segments(x_values, points):
+            if len(segment) == 1:
+                px, py = segment[0]
+                draw.ellipse((px - 3, py - 3, px + 3, py + 3), fill=color)
+            else:
+                draw.line(segment, fill=color, width=3, joint="curve")
 
         if series_index == series_count - 1:
             for value in x_ticks:

@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 
 from thread_plot.data import PlotData
-from thread_plot.plot import HEIGHT, render_plot, x_tick_values
+from thread_plot.plot import HEIGHT, line_segments, render_plot, x_tick_values
 from thread_plot.routing import Destination, destinations
 
 
@@ -32,6 +32,17 @@ class PlotAndRoutingTests(unittest.TestCase):
         self.assertEqual(ticks[0], 481.0)
         self.assertEqual(ticks[-1], 650.0)
         self.assertTrue(all(tick in values and tick.is_integer() for tick in ticks))
+
+    def test_line_segments_split_large_x_gaps(self):
+        points = [(100.0, 10.0), (101.0, 11.0), (500.0, 20.0), (501.0, 21.0)]
+
+        self.assertEqual(
+            line_segments((100.0, 101.0, 500.0, 501.0), points),
+            (
+                ((100.0, 10.0), (101.0, 11.0)),
+                ((500.0, 20.0), (501.0, 21.0)),
+            ),
+        )
 
     def test_three_series_expand_to_independent_vertical_panels(self):
         data = PlotData(
