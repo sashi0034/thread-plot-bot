@@ -85,7 +85,7 @@ class CommandTests(unittest.TestCase):
             ],
         )
 
-    def test_omitted_values_inherit_the_user_previous_settings(self):
+    def test_omitted_y_inherits_the_user_previous_settings(self):
         history = CommandHistory()
         original = parse_command(
             "reward loss --x episode --where curriculum=survival --last 100 --smooth 10 "
@@ -106,6 +106,22 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(changed_url.y_fields, ("reward", "loss"))
         self.assertEqual(changed_url.x_field, "episode")
         self.assertEqual(changed_url.urls, ("https://example.slack.com/archives/C0B6GPFJ1FU/p1782284445513339",))
+
+    def test_explicit_y_does_not_inherit_previous_options(self):
+        history = CommandHistory()
+        history.save(
+            "U1",
+            parse_command("reward --x episode --where curriculum=survival --last 100 --smooth 10 --title Training"),
+        )
+
+        command = history.resolve("U1", parse_command("success_rate --x update"))
+
+        self.assertEqual(command.y_fields, ("success_rate",))
+        self.assertEqual(command.x_field, "update")
+        self.assertEqual(command.where, ())
+        self.assertIsNone(command.last)
+        self.assertIsNone(command.smooth)
+        self.assertIsNone(command.title)
 
     def test_repeat_without_a_prior_command_is_rejected(self):
         with self.assertRaisesRegex(CommandError, "No previous settings"):

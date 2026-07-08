@@ -56,10 +56,10 @@ class PlotCommand:
 
     def inherit(self, previous: "PlotCommand | None") -> "PlotCommand":
         """Fill values omitted from this command from the user's prior command."""
-        if previous is None:
-            if not self.y_fields:
-                raise CommandError("No previous settings found; specify at least one y field.")
+        if "y" in self.specified:
             return self
+        if previous is None:
+            raise CommandError("No previous settings found; specify at least one y field.")
         return PlotCommand(
             y_fields=self.y_fields if "y" in self.specified else previous.y_fields,
             x_field=self.x_field if "--x" in self.specified else previous.x_field,
